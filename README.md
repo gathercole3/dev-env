@@ -9,5 +9,5 @@ First, install the vagrant-docker-compose plugin. this can be done by running th
 Then run `vagrant up`.
 
 when running for the first time you will be asked for a project configuration repo
-if you do not have one an example project can be pulled down using xxx
+if you do not have one an example project can be pulled down using git@github.com:gathercole3/dev-env-project-skeletons.git
 
