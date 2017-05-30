@@ -89,8 +89,10 @@ Vagrant.configure(2) do |config|
   config.vm.provision "shell", inline: "echo \"export COMPOSE_FILE='/vagrant/dev-env-project/docker-compose.yml'\" >> /home/vagrant/.bash_profile"
 
   #setup database if we have one
-  if File.exists?("dev-env-project/db_setup.sh")
+  if File.exists?(File.dirname(__FILE__) + '/dev-env-project/db_setup.sh')
     config.vm.provision "shell", path: "dev-env-project/db_setup.sh"
+  else
+    print("you have not specified any databases to set up")
   end
 
 end
