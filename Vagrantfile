@@ -1,4 +1,5 @@
 VAGRANTFILE_API_VERSION = "2"
+require 'yaml'
 require_relative 'vagrant_scripts/git_commands'
 
 TRY_APPS = true
