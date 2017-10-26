@@ -2,6 +2,11 @@ VAGRANTFILE_API_VERSION = "2"
 require 'yaml'
 require_relative 'vagrant_scripts/git_commands'
 
+
+# default variables these can be overritten in dev-env-project/vm_config
+@RAM = 1024
+# end of default variables
+
 TRY_APPS = true
 DEV_ENV_CONTEXT_FILE = File.dirname(__FILE__) + "/.dev-env-context"
 
@@ -66,11 +71,15 @@ if ['up', 'resume', 'reload'].include? ARGV[0]
   end
 end
 
+if File.exists?(File.dirname(__FILE__) + '/dev-env-project/vm_config.rb')
+  require_relative 'dev-env-project/vm_config'
+end
+
 Vagrant.configure(2) do |config|
   config.vm.box = "ubuntu/trusty64"
 
   config.vm.provider "virtualbox" do |v|
-    v.memory = 1024
+    v.memory = @RAM
   end
 
   # Only if vagrant up/resume do we want to forward ports
@@ -84,6 +93,12 @@ Vagrant.configure(2) do |config|
   end
 
   config.vm.provision :docker
+
+  if File.exists?(File.dirname(__FILE__) + '/dev-env-project/db_setup.sh')
+    #create persistent database storage
+    config.vm.provision "shell", inline: "docker volume create --name=database-data"
+  end
+
   config.vm.provision :docker_compose, yml: "/vagrant/dev-env-project/docker-compose.yml", rebuild: true, run: "always"
 
   #allows you to run docker-compose commands from anywhere
