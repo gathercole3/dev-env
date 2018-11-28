@@ -4,11 +4,11 @@ require_relative 'vagrant_scripts/git_commands'
 
 
 # default variables these can be overritten in dev-env-project/vm_config
-@RAM = 1024
+@RAM = 4096
 # end of default variables
 
 TRY_APPS = true
-DEV_ENV_CONTEXT_FILE = File.dirname(__FILE__) + "/.dev-env-context"
+DEV_ENV_CONTEXT_FILE = File.dirname(_FILE_) + "/.dev-env-context"
 
 if ['up', 'resume', 'reload'].include? ARGV[0]
   #check for context file if not found create one
@@ -20,7 +20,7 @@ if ['up', 'resume', 'reload'].include? ARGV[0]
 
   # update dev-env-project
   puts("Retrieving configuration repo:")
-  command_successful = update_or_pull(File.dirname(__FILE__) + '/dev-env-project', File.read(DEV_ENV_CONTEXT_FILE))
+  command_successful = update_or_pull(File.dirname(_FILE_) + '/dev-env-project', File.read(DEV_ENV_CONTEXT_FILE))
 
   # if updating configuration failed ask the user if they want to continue and if they want to update apps
   if not command_successful
@@ -40,13 +40,13 @@ if ['up', 'resume', 'reload'].include? ARGV[0]
     end
   end
 
-  app_config = YAML.load_file("#{File.dirname(__FILE__)}/dev-env-project/configuration.yml")
+  app_config = YAML.load_file("#{File.dirname(_FILE_)}/dev-env-project/configuration.yml")
   #update users apps unless the user has specifed not to
   if TRY_APPS
     puts("Updating apps:")
     if app_config["applications"]
       app_config["applications"].each do |appname, appconfig|
-        command_successful = update_or_pull("#{File.dirname(__FILE__)}/apps/#{appname}", appconfig["repo"], appconfig['branch'])
+        command_successful = update_or_pull("#{File.dirname(_FILE_)}/apps/#{appname}", appconfig["repo"], appconfig['branch'])
         #if app fails to download then error
         if not command_successful
           puts("Something went wrong updating #{appname}")
@@ -58,7 +58,7 @@ if ['up', 'resume', 'reload'].include? ARGV[0]
     puts("Updating commodities:")
     if app_config["commodities"]
       app_config["commodities"].each do |commodityname, commodityconfig|
-        command_successful = update_or_pull("#{File.dirname(__FILE__)}/commodities/#{commodityname}", commodityconfig["repo"], commodityconfig['branch'])
+        command_successful = update_or_pull("#{File.dirname(_FILE_)}/commodities/#{commodityname}", commodityconfig["repo"], commodityconfig['branch'])
         #if commodity fails to download then error
         if not command_successful
           puts("Something went wrong updating #{commodityname}")
@@ -71,20 +71,23 @@ if ['up', 'resume', 'reload'].include? ARGV[0]
   end
 end
 
-if File.exists?(File.dirname(__FILE__) + '/dev-env-project/vm_config.rb')
+if File.exists?(File.dirname(_FILE_) + '/dev-env-project/vm_config.rb')
   require_relative 'dev-env-project/vm_config'
 end
 
+#Vagrant::DEFAULT_SERVER_URL.replace('https://vagrantcloud.com')
+
 Vagrant.configure(2) do |config|
-  config.vm.box = "ubuntu/trusty64"
+  config.vm.box = "ubuntu/bionic64"
 
   config.vm.provider "virtualbox" do |v|
-    v.memory = @RAM
-  end
+        v.memory = 4096
+        v.cpus = 2
+    end
 
   # Only if vagrant up/resume do we want to forward ports
   if ['up', 'resume', 'reload'].include? ARGV[0]
-    if File.exists?(File.dirname(__FILE__) + '/dev-env-project/forward_ports.rb')
+    if File.exists?(File.dirname(_FILE_) + '/dev-env-project/forward_ports.rb')
       require_relative 'dev-env-project/forward_ports'
       forward_ports(config)
     else
@@ -92,20 +95,27 @@ Vagrant.configure(2) do |config|
     end
   end
 
-  config.vm.provision :docker
+  config.vm.provision "shell", inline: "curl https://releases.rancher.com/install-docker/18.03.sh | sh"
+  config.vm.provision "shell", inline: "sudo usermod -aG docker vagrant"
+  config.vm.provision "shell", inline: 'sudo curl -L "https://github.com/docker/compose/releases/download/1.22.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose'
+  config.vm.provision "shell", inline: "sudo chmod +x /usr/local/bin/docker-compose"
+  config.vm.provision "shell", inline: "echo \"export COMPOSE_FILE='/vagrant/dev-env-project/docker-compose.yml'\" >> /home/vagrant/.bash_profile"
 
-  if File.exists?(File.dirname(__FILE__) + '/dev-env-project/db_setup.sh')
+  config.vm.provision "shell", inline: <<-SHELL
+    cd /vagrant/dev-env-project/
+    ls
+    docker-compose up --build -d
+  SHELL
+
+  if File.exists?(File.dirname(_FILE_) + '/dev-env-project/db_setup.sh')
     #create persistent database storage
     config.vm.provision "shell", inline: "docker volume create --name=database-data"
   end
 
-  config.vm.provision :docker_compose, yml: "/vagrant/dev-env-project/docker-compose.yml", rebuild: true, run: "always"
-
   #allows you to run docker-compose commands from anywhere
-  config.vm.provision "shell", inline: "echo \"export COMPOSE_FILE='/vagrant/dev-env-project/docker-compose.yml'\" >> /home/vagrant/.bash_profile"
 
   #setup database if we have one
-  if File.exists?(File.dirname(__FILE__) + '/dev-env-project/db_setup.sh')
+  if File.exists?(File.dirname(_FILE_) + '/dev-env-project/db_setup.sh')
     config.vm.provision "shell", path: "dev-env-project/db_setup.sh"
   else
     print("you have not specified any databases to set up")
